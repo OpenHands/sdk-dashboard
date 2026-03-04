@@ -7,7 +7,7 @@ A dashboard to track quantitative SDK success metrics from GitHub, npm, and PyPI
 - **Framework:** Next.js 14 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS + shadcn/ui
-- **Database:** Vercel Postgres + Drizzle ORM
+- **Database:** Neon Postgres + Drizzle ORM
 - **Charts:** Recharts
 - **Deployment:** Vercel
 
@@ -28,8 +28,8 @@ Open [http://localhost:3000](http://localhost:3000) to view the app.
 Create a `.env.local` file for local development:
 
 ```env
-# Database (Vercel Postgres)
-POSTGRES_URL=
+# Database (Neon Postgres)
+DATABASE_URL=
 
 # GitHub API (optional - for higher rate limits)
 GITHUB_TOKEN=
@@ -39,8 +39,37 @@ GITHUB_TOKEN=
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `POSTGRES_URL` | Yes (for DB features) | Vercel Postgres connection string. Get this from Vercel Dashboard → Storage → Create Database → Postgres |
+| `DATABASE_URL` | Yes (for DB features) | Neon Postgres connection string. Get this from [Neon Console](https://console.neon.tech/) or Vercel Storage |
 | `GITHUB_TOKEN` | No | GitHub Personal Access Token. Increases API rate limit from 60 to 5,000 requests/hour. [Create one here](https://github.com/settings/tokens) |
+
+## Database Setup
+
+This project uses [Drizzle ORM](https://orm.drizzle.team/) with Neon Postgres.
+
+### Available Commands
+
+```bash
+# Generate migrations from schema changes
+npm run db:generate
+
+# Apply migrations to database
+npm run db:migrate
+
+# Push schema directly (development)
+npm run db:push
+
+# Open Drizzle Studio (database GUI)
+npm run db:studio
+```
+
+### Initial Setup
+
+1. Create a database at [Neon](https://console.neon.tech/) or via Vercel Storage
+2. Copy the connection string to `DATABASE_URL` in `.env.local`
+3. Push the schema to create tables:
+   ```bash
+   npm run db:push
+   ```
 
 ## Vercel Deployment Setup
 
@@ -49,20 +78,23 @@ GITHUB_TOKEN=
    - Import this GitHub repository
 
 2. **Create Postgres Database**
-   - In Vercel Dashboard → Storage → Create Database → Postgres
+   - In Vercel Dashboard → Storage → Create Database → Neon Postgres
    - Connect it to your project
-   - `POSTGRES_URL` will be automatically added to environment variables
+   - `DATABASE_URL` will be automatically added to environment variables
 
-3. **Add Environment Variables**
+3. **Run Database Migration**
+   - After first deploy, run migrations or use `db:push` locally with production DATABASE_URL
+
+4. **Add Environment Variables**
    - Go to Project Settings → Environment Variables
    - Add `GITHUB_TOKEN` (optional but recommended)
 
-4. **Deploy**
+5. **Deploy**
    - Push to `main` branch to trigger deployment
 
 ## Learn More
 
 - [Next.js Documentation](https://nextjs.org/docs)
-- [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres)
-- [shadcn/ui Components](https://ui.shadcn.com/)
+- [Neon Postgres](https://neon.tech/docs)
 - [Drizzle ORM](https://orm.drizzle.team/)
+- [shadcn/ui Components](https://ui.shadcn.com/)
