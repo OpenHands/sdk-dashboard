@@ -10,6 +10,8 @@ export function getDb() {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
+    // prepare: false is required for Supabase connection pooler (Supavisor)
+    // See: https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler
     const client = postgres(process.env.DATABASE_URL, { prepare: false });
     _db = drizzle(client, { schema });
   }

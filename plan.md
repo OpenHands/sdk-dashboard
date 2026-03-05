@@ -30,7 +30,7 @@ Based on research from the [SDK Success Notion page](https://www.notion.so/SDK-S
 | # | Task | Description | Blocked By |
 |---|------|-------------|------------|
 | 1 | Initialize Next.js project | Create Next.js 14 app with TypeScript, Tailwind CSS | - |
-| 2 | Set up Vercel Postgres | Configure database connection with Drizzle ORM | 1 |
+| 2 | Set up Supabase Postgres | Configure database connection with Drizzle ORM | 1 |
 | 3 | Create database schema | Tables for SDKs and metrics snapshots | 2 |
 | 4 | Build GitHub API integration | Fetch stars, forks, contributors | 1 |
 | 5 | Build npm API integration | Fetch weekly download counts | 1 |
@@ -77,7 +77,7 @@ Based on research from the [SDK Success Notion page](https://www.notion.so/SDK-S
 |-----------|------------|
 | Frontend | Next.js 14 (App Router) + TypeScript |
 | Styling | Tailwind CSS + shadcn/ui |
-| Database | Vercel Postgres |
+| Database | Supabase Postgres |
 | ORM | Drizzle ORM |
 | Charts | Recharts |
 | Deployment | Vercel |
@@ -146,11 +146,14 @@ oh-sdk-dashboard/
 ## 🔑 Environment Variables
 
 ```env
-# Vercel Postgres (auto-populated when you create DB in Vercel)
-POSTGRES_URL=
+# Supabase Postgres connection string
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
 
 # GitHub API (optional but recommended for higher rate limits)
 GITHUB_TOKEN=
+
+# Cron job authorization (for Vercel Cron)
+CRON_SECRET=
 ```
 
 ---
