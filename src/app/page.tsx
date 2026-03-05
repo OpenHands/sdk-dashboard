@@ -2,8 +2,8 @@ import { SDK_CONFIG } from '@/lib/sdk-config';
 import { getAllGitHubMetrics } from '@/lib/github';
 import { getPyPIDownloads } from '@/lib/pypi';
 import { MetricsCard } from '@/components/metrics-card';
+import { RefreshCountdown } from '@/components/refresh-countdown';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 async function getMetrics() {
@@ -19,7 +19,8 @@ async function getMetrics() {
   }
 }
 
-export const revalidate = 300; // Revalidate every 5 minutes
+// Revalidate every 5 minutes (server-side cache only, not DB writes)
+export const revalidate = 300;
 
 export default async function Home() {
   const { github, pypi, error } = await getMetrics();
@@ -60,14 +61,7 @@ export default async function Home() {
                   <span>{SDK_CONFIG.pypi.package}</span>
                 </Link>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Last updated: {new Date(lastUpdated).toLocaleString()}
-                </span>
-                <Button variant="default" size="sm" asChild>
-                  <Link href="/">↻ Refresh</Link>
-                </Button>
-              </div>
+              <RefreshCountdown lastUpdated={lastUpdated} refreshInterval={300} />
             </div>
           </CardContent>
         </Card>
@@ -141,7 +135,7 @@ export default async function Home() {
             loading={!pypi && !error}
           />
           <MetricsCard 
-            title="Monthly Downloads" 
+            title="Last 30 Days" 
             value={pypi?.monthlyDownloads ?? '--'} 
             icon="📆"
             loading={!pypi && !error}
