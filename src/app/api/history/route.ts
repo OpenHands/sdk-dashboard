@@ -125,24 +125,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Build query
-    let query = db
+    // Build query with all conditions
+    const snapshots = await db
       .select()
       .from(metricsSnapshots)
-      .where(gte(metricsSnapshots.date, startDate.toISOString().split('T')[0]))
-      .orderBy(desc(metricsSnapshots.date));
-
-    // Filter by SDK if provided
-    if (sdkId) {
-      query = query.where(
+      .where(
         and(
           eq(metricsSnapshots.sdkId, sdkId),
           gte(metricsSnapshots.date, startDate.toISOString().split('T')[0])
         )
-      ) as typeof query;
-    }
-
-    const snapshots = await query;
+      )
+      .orderBy(desc(metricsSnapshots.date));
 
     // Transform data for charts
     const starsData = snapshots.map((s) => ({

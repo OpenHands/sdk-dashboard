@@ -20,8 +20,6 @@ interface TrendChartProps {
     [key: string]: string | number | null | undefined;
   }>;
   dataKey: string;
-  title: string;
-  period?: number;
   chartType?: 'line' | 'area' | 'bar';
   color?: string;
   formatValue?: (value: number) => string;
@@ -30,7 +28,6 @@ interface TrendChartProps {
 export function TrendChart({
   data,
   dataKey,
-  title,
   chartType = 'line',
   color = '#8884d8',
   formatValue = (value) => value.toLocaleString(),

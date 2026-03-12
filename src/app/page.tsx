@@ -4,7 +4,7 @@ import { getPyPIDownloads } from '@/lib/pypi';
 import { MetricsCard } from '@/components/metrics-card';
 import { RefreshCountdown } from '@/components/refresh-countdown';
 import { TrendCharts } from '@/components/trend-charts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 
 async function getMetrics() {

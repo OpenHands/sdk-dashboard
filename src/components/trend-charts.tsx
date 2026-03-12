@@ -139,7 +139,6 @@ export function TrendCharts({ initialPeriod = 30 }: TrendChartsProps) {
               <TrendChart
                 data={historyData.data.githubStars.map(d => ({ ...d, github_stars: d.value }))}
                 dataKey="github_stars"
-                title="GitHub Stars"
                 chartType="area"
                 color="#6366f1"
                 formatValue={(v) => `${v.toLocaleString()} ⭐`}
@@ -154,7 +153,6 @@ export function TrendCharts({ initialPeriod = 30 }: TrendChartsProps) {
               <TrendChart
                 data={historyData.data.pypiDownloads.map(d => ({ ...d, pypi_downloads: d.value }))}
                 dataKey="pypi_downloads"
-                title="PyPI Downloads"
                 chartType="bar"
                 color="#10b981"
                 formatValue={(v) => `${v.toLocaleString()} 📦`}
