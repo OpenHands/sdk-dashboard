@@ -14,9 +14,8 @@ export function getDb() {
       return null;
     }
     try {
-      // prepare: false is required for Supabase connection pooler (Supavisor)
-      // See: https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler
-      const client = postgres(process.env.DATABASE_URL, { prepare: false });
+      // Neon supports prepared statements
+      const client = postgres(process.env.DATABASE_URL);
       _db = drizzle(client, { schema });
     } catch (error) {
       console.error('Failed to initialize database:', error);
