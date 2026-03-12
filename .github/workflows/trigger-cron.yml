@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Trigger Vercel Cron
         run: |
-          curl -X GET "${{ inputs.vercel_deployment_url }}/api/cron/collect" \
+          curl -X POST "${{ inputs.vercel_deployment_url }}/api/cron/collect" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
