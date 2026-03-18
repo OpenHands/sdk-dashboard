@@ -15,6 +15,7 @@ interface HistoryResponse {
   data: {
     githubStars: TrendData[];
     githubForks: TrendData[];
+    githubActiveForks: TrendData[];
     pypiDownloads: TrendData[];
   };
   snapshotCount: number;
@@ -142,6 +143,20 @@ export function TrendCharts({ initialPeriod = 30 }: TrendChartsProps) {
                 chartType="area"
                 color="#6366f1"
                 formatValue={(v) => `${v.toLocaleString()} ⭐`}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Active Forks</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TrendChart
+                data={historyData.data.githubActiveForks.map(d => ({ ...d, active_forks: d.value }))}
+                dataKey="active_forks"
+                chartType="area"
+                color="#f59e0b"
+                formatValue={(v) => `${v.toLocaleString()} 🔥`}
               />
             </CardContent>
           </Card>
