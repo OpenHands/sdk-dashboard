@@ -35,6 +35,8 @@ export interface RepoMetrics {
 export interface ContributorMetrics {
   totalContributors: number;
   repeatContributors: number; // Contributors with 2+ contributions
+  oneTimeContributors: number; // Contributors with exactly 1 contribution
+  repeatContributorRatio: number; // Ratio of repeat contributors (0-1)
 }
 
 export interface ForkMetrics {
@@ -150,18 +152,30 @@ export async function getRepoMetrics(owner: string, repo: string): Promise<RepoM
 }
 
 /**
+ * Compute contributor metrics from a list of contributors.
+ * Pure function – no API calls – for easy testing.
+ */
+export function computeContributorMetrics(contributors: GitHubContributor[]): ContributorMetrics {
+  const total = contributors.length;
+  const repeat = contributors.filter(c => c.contributions >= 2).length;
+  const oneTime = total - repeat;
+
+  return {
+    totalContributors: total,
+    repeatContributors: repeat,
+    oneTimeContributors: oneTime,
+    repeatContributorRatio: total > 0 ? repeat / total : 0,
+  };
+}
+
+/**
  * Fetch contributor metrics
  */
 export async function getContributorMetrics(owner: string, repo: string): Promise<ContributorMetrics> {
   const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contributors`;
   const contributors = await fetchAllPages<GitHubContributor>(url);
-  
-  const repeatContributors = contributors.filter(c => c.contributions >= 2).length;
-  
-  return {
-    totalContributors: contributors.length,
-    repeatContributors,
-  };
+
+  return computeContributorMetrics(contributors);
 }
 
 /**
@@ -229,6 +243,8 @@ export async function getAllGitHubMetrics(owner: string, repo: string) {
     watchers: repoMetrics.watchers,
     totalContributors: contributorMetrics.totalContributors,
     repeatContributors: contributorMetrics.repeatContributors,
+    oneTimeContributors: contributorMetrics.oneTimeContributors,
+    repeatContributorRatio: contributorMetrics.repeatContributorRatio,
     activeForks: forkMetrics.activeForks,
   };
 }

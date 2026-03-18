@@ -9,6 +9,8 @@ interface GitHubMetricsResponse {
   activeForks: number;
   contributors: number;
   repeatContributors: number;
+  oneTimeContributors: number;
+  repeatContributorRatio: number;
   openIssues: number;
   watchers: number;
 }
@@ -62,6 +64,8 @@ export async function GET(request: NextRequest) {
               activeForks: metrics.activeForks,
               contributors: metrics.totalContributors,
               repeatContributors: metrics.repeatContributors,
+              oneTimeContributors: metrics.oneTimeContributors,
+              repeatContributorRatio: metrics.repeatContributorRatio,
               openIssues: metrics.openIssues,
               watchers: metrics.watchers,
             };

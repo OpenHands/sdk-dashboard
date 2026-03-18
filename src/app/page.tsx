@@ -108,7 +108,7 @@ export default async function Home() {
             title="Repeat Contributors" 
             value={github?.repeatContributors ?? '--'} 
             icon="🔁"
-            subtitle="2+ commits"
+            subtitle={github ? `${Math.round(github.repeatContributorRatio * 100)}% of ${github.totalContributors} contributors` : '2+ commits'}
             loading={!github && !error}
           />
           <MetricsCard 
