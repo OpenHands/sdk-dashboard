@@ -1,5 +1,12 @@
 const GITHUB_API_BASE = 'https://api.github.com';
 
+/** Maximum number of forks to fetch before switching to sampling */
+const FORK_SAMPLING_THRESHOLD = 200;
+/** Number of forks to sample when total exceeds threshold */
+const FORK_SAMPLE_SIZE = 100;
+/** Cache TTL in milliseconds (10 minutes) */
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
 interface GitHubRepoInfo {
   stargazers_count: number;
   forks_count: number;
@@ -33,6 +40,33 @@ export interface ContributorMetrics {
 export interface ForkMetrics {
   totalForks: number;
   activeForks: number; // Forks with commits after fork creation
+  sampled: boolean;    // Whether the result was estimated via sampling
+}
+
+// --- In-memory cache for expensive API results ---
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+export function getCacheEntry<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+export function setCacheEntry<T>(key: string, data: T, ttlMs: number = CACHE_TTL_MS): void {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+export function clearCache(): void {
+  cache.clear();
 }
 
 function getHeaders(): HeadersInit {
@@ -89,6 +123,18 @@ async function fetchAllPages<T>(baseUrl: string, perPage = 100): Promise<T[]> {
 }
 
 /**
+ * Count active forks from a list of fork objects.
+ * A fork is "active" if pushed_at > created_at (has commits beyond the fork point).
+ */
+export function countActiveForks(forks: GitHubFork[]): number {
+  return forks.filter(fork => {
+    const pushedAt = new Date(fork.pushed_at);
+    const createdAt = new Date(fork.created_at);
+    return pushedAt > createdAt;
+  }).length;
+}
+
+/**
  * Fetch basic repository metrics (stars, forks, issues, watchers)
  */
 export async function getRepoMetrics(owner: string, repo: string): Promise<RepoMetrics> {
@@ -119,23 +165,51 @@ export async function getContributorMetrics(owner: string, repo: string): Promis
 }
 
 /**
- * Fetch fork metrics including active forks (forks with commits after creation)
+ * Fetch fork metrics including active forks (forks with commits after creation).
+ *
+ * For repos with many forks (> FORK_SAMPLING_THRESHOLD), fetches only the first
+ * FORK_SAMPLE_SIZE forks (sorted newest-first) and extrapolates the active ratio
+ * to estimate the total active fork count. This avoids exhausting API rate limits
+ * on popular repositories.
+ *
+ * Results are cached in memory for CACHE_TTL_MS to further reduce API calls.
  */
 export async function getForkMetrics(owner: string, repo: string): Promise<ForkMetrics> {
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/forks?sort=newest`;
-  const forks = await fetchAllPages<GitHubFork>(url);
-  
-  // Active fork = pushed_at is after created_at (has commits beyond the fork point)
-  const activeForks = forks.filter(fork => {
-    const pushedAt = new Date(fork.pushed_at);
-    const createdAt = new Date(fork.created_at);
-    return pushedAt > createdAt;
-  }).length;
-  
-  return {
-    totalForks: forks.length,
-    activeForks,
-  };
+  const cacheKey = `forks:${owner}/${repo}`;
+  const cached = getCacheEntry<ForkMetrics>(cacheKey);
+  if (cached) return cached;
+
+  // First, get the total fork count from the repo endpoint (cheap: 1 API call)
+  const repoUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}`;
+  const repoData = await fetchWithRateLimit<GitHubRepoInfo>(repoUrl);
+  const totalForks = repoData.forks_count;
+
+  let activeForks: number;
+  let sampled = false;
+
+  if (totalForks <= FORK_SAMPLING_THRESHOLD) {
+    // Small enough to enumerate all forks
+    const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/forks?sort=newest`;
+    const forks = await fetchAllPages<GitHubFork>(url);
+    activeForks = countActiveForks(forks);
+  } else {
+    // Sample the most recent forks and extrapolate
+    sampled = true;
+    const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/forks?sort=newest&per_page=${FORK_SAMPLE_SIZE}`;
+    const sampleForks = await fetchWithRateLimit<GitHubFork[]>(url);
+    const sampleActive = countActiveForks(sampleForks);
+
+    if (sampleForks.length === 0) {
+      activeForks = 0;
+    } else {
+      const activeRatio = sampleActive / sampleForks.length;
+      activeForks = Math.round(activeRatio * totalForks);
+    }
+  }
+
+  const result: ForkMetrics = { totalForks, activeForks, sampled };
+  setCacheEntry(cacheKey, result);
+  return result;
 }
 
 /**

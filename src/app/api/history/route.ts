@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         data: {
           githubStars: [],
           githubForks: [],
+          githubActiveForks: [],
           pypiDownloads: [],
         },
         snapshotCount: 0,
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
             data: {
               githubStars: [],
               githubForks: [],
+              githubActiveForks: [],
               pypiDownloads: [],
             },
             snapshotCount: 0,
@@ -99,6 +101,7 @@ export async function GET(request: NextRequest) {
           data: {
             githubStars: [],
             githubForks: [],
+            githubActiveForks: [],
             pypiDownloads: [],
           },
           snapshotCount: 0,
@@ -116,6 +119,7 @@ export async function GET(request: NextRequest) {
         data: {
           githubStars: [],
           githubForks: [],
+          githubActiveForks: [],
           pypiDownloads: [],
         },
         snapshotCount: 0,
@@ -148,6 +152,11 @@ export async function GET(request: NextRequest) {
       value: s.githubForks,
     }));
 
+    const activeForksData = snapshots.map((s) => ({
+      date: s.date,
+      value: s.githubActiveForks,
+    }));
+
     const pypiData = snapshots.map((s) => ({
       date: s.date,
       value: s.pypiDownloadsWeekly,
@@ -158,6 +167,7 @@ export async function GET(request: NextRequest) {
       data: {
         githubStars: starsData,
         githubForks: forksData,
+        githubActiveForks: activeForksData,
         pypiDownloads: pypiData,
       },
       snapshotCount: snapshots.length,
