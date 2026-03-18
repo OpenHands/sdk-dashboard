@@ -6,6 +6,10 @@ const FORK_SAMPLING_THRESHOLD = 200;
 const FORK_SAMPLE_SIZE = 100;
 /** Cache TTL in milliseconds (10 minutes) */
 const CACHE_TTL_MS = 10 * 60 * 1000;
+/** Cache TTL for dependent repos count (1 hour – changes infrequently) */
+const DEPENDENT_REPOS_CACHE_TTL_MS = 60 * 60 * 1000;
+/** Delay between search-API pages to stay under rate limit (ms) */
+const SEARCH_PAGE_DELAY_MS = 250;
 
 interface GitHubRepoInfo {
   stargazers_count: number;
@@ -23,6 +27,19 @@ interface GitHubFork {
   full_name: string;
   pushed_at: string;
   created_at: string;
+}
+
+export interface GitHubSearchItem {
+  repository: {
+    id: number;
+    full_name: string;
+  };
+}
+
+interface GitHubSearchResult<T> {
+  total_count: number;
+  incomplete_results: boolean;
+  items: T[];
 }
 
 export interface RepoMetrics {
@@ -43,6 +60,10 @@ export interface ForkMetrics {
   totalForks: number;
   activeForks: number; // Forks with commits after fork creation
   sampled: boolean;    // Whether the result was estimated via sampling
+}
+
+export interface DependentReposMetrics {
+  dependentRepos: number;
 }
 
 // --- In-memory cache for expensive API results ---
@@ -224,6 +245,80 @@ export async function getForkMetrics(owner: string, repo: string): Promise<ForkM
   const result: ForkMetrics = { totalForks, activeForks, sampled };
   setCacheEntry(cacheKey, result);
   return result;
+}
+
+/**
+ * Fetch all pages from the GitHub code search API.
+ * The search API returns results wrapped in {total_count, items}, unlike
+ * the list endpoints which return plain arrays.
+ */
+async function fetchSearchPages<T>(baseUrl: string): Promise<T[]> {
+  const results: T[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const url = `${baseUrl}&per_page=${perPage}&page=${page}`;
+    const data = await fetchWithRateLimit<GitHubSearchResult<T>>(url);
+
+    results.push(...data.items);
+
+    // Stop when we've received all items or hit GitHub's 1000-result cap
+    if (data.items.length < perPage || results.length >= data.total_count || page >= 10) break;
+
+    page++;
+    // Brief delay to stay within the Search API rate limit (30 req/min)
+    await new Promise(resolve => setTimeout(resolve, SEARCH_PAGE_DELAY_MS));
+  }
+
+  return results;
+}
+
+/**
+ * Count unique repositories from a list of GitHub code-search result items.
+ * Pure function – no API calls – for easy testing.
+ */
+export function countUniqueDependentRepos(items: GitHubSearchItem[]): number {
+  const repoIds = new Set(items.map(item => item.repository.id));
+  return repoIds.size;
+}
+
+/**
+ * Fetch the number of public repositories that reference the SDK,
+ * using one or more raw GitHub code-search query strings.
+ *
+ * Results from all queries are combined and deduplicated by repository ID
+ * before counting, so a repo that matches multiple queries is only counted once.
+ *
+ * Results are cached for DEPENDENT_REPOS_CACHE_TTL_MS (1 hour) to stay well
+ * within the Search API's 30 req/min rate limit.
+ *
+ * @param queries - GitHub code-search query strings exactly as you would type
+ *                  them in the GitHub search box (e.g.
+ *                  '"software-agent-sdk" -org:OpenHands -is:fork').
+ *                  Pass an empty array to skip the fetch and return 0.
+ */
+export async function getDependentReposCount(queries: string[]): Promise<number> {
+  if (queries.length === 0) return 0;
+
+  // Sort queries for a stable, order-independent cache key
+  const cacheKey = `dependents:${[...queries].sort().join('|')}`;
+  const cached = getCacheEntry<number>(cacheKey);
+  if (cached !== null) return cached;
+
+  const allItems: GitHubSearchItem[] = [];
+
+  for (const query of queries) {
+    const q = encodeURIComponent(query);
+    const items = await fetchSearchPages<GitHubSearchItem>(
+      `${GITHUB_API_BASE}/search/code?q=${q}`
+    );
+    allItems.push(...items);
+  }
+
+  const count = countUniqueDependentRepos(allItems);
+  setCacheEntry(cacheKey, count, DEPENDENT_REPOS_CACHE_TTL_MS);
+  return count;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { getDb } from './db';
 import { sdks, metricsSnapshots } from './schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { getAllGitHubMetrics } from './github';
+import { getAllGitHubMetrics, getDependentReposCount } from './github';
 import { getPyPIDownloads } from './pypi';
 import { SDK_CONFIG } from './sdk-config';
 
@@ -52,9 +52,10 @@ export async function getOrCreateSDK(): Promise<number> {
  * Collect current metrics from all APIs
  */
 export async function collectCurrentMetrics(): Promise<SnapshotData> {
-  const [github, pypi] = await Promise.all([
+  const [github, pypi, dependentRepos] = await Promise.all([
     getAllGitHubMetrics(SDK_CONFIG.github.owner, SDK_CONFIG.github.repo),
     getPyPIDownloads(SDK_CONFIG.pypi.package),
+    getDependentReposCount([...SDK_CONFIG.dependencySearches]).catch(() => null),
   ]);
 
   return {
@@ -63,7 +64,7 @@ export async function collectCurrentMetrics(): Promise<SnapshotData> {
     githubActiveForks: github.activeForks,
     githubContributors: github.totalContributors,
     githubRepeatContributors: github.repeatContributors,
-    githubDependentRepos: null, // Not implemented yet
+    githubDependentRepos: dependentRepos,
     npmDownloadsWeekly: null, // Python SDK only
     pypiDownloadsWeekly: pypi.weeklyDownloads,
   };
@@ -225,4 +226,32 @@ export async function getLatestSnapshot(
     .limit(1);
 
   return result[0] || null;
+}
+
+export interface StoredDependentRepos {
+  count: number | null;
+  /** ISO date string (YYYY-MM-DD) of the snapshot that produced this count */
+  date: string | null;
+}
+
+/**
+ * Return the dependent repos count that the daily cron job last wrote to the
+ * database, along with the snapshot date so the UI can show "updated [date]".
+ *
+ * This is intentionally a cheap DB read — the expensive GitHub Search API
+ * call only runs once per day inside collectCurrentMetrics() (the cron job).
+ * Returns { count: null, date: null } when the DB is unavailable or no
+ * snapshot exists yet.
+ */
+export async function getStoredDependentRepos(): Promise<StoredDependentRepos> {
+  try {
+    const sdkId = await getOrCreateSDK();
+    const snapshot = await getLatestSnapshot(sdkId);
+    return {
+      count: snapshot?.githubDependentRepos ?? null,
+      date: snapshot?.date ?? null,
+    };
+  } catch {
+    return { count: null, date: null };
+  }
 }

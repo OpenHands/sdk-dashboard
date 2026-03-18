@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllGitHubMetrics } from '@/lib/github';
+import { getAllGitHubMetrics, getDependentReposCount } from '@/lib/github';
 import { getNpmDownloadsSafe } from '@/lib/npm';
 import { getPyPIDownloadsSafe } from '@/lib/pypi';
 
@@ -13,6 +13,7 @@ interface GitHubMetricsResponse {
   repeatContributorRatio: number;
   openIssues: number;
   watchers: number;
+  dependentRepos: number | null;
 }
 
 interface NpmMetricsResponse {
@@ -55,9 +56,19 @@ export async function GET(request: NextRequest) {
   if (githubRepo) {
     const [owner, repo] = githubRepo.split('/');
     if (owner && repo) {
+      // Build generic search queries from whatever package params are provided.
+      // Callers that want the curated SDK-specific searches should use the
+      // dashboard directly; this endpoint stays package-agnostic.
+      const dependencyQueries: string[] = [];
+      if (pypiPackage) dependencyQueries.push(`"${pypiPackage}"`);
+      if (npmPackage) dependencyQueries.push(`"${npmPackage}" filename:package.json`);
+
       promises.push(
-        getAllGitHubMetrics(owner, repo)
-          .then((metrics) => {
+        Promise.all([
+          getAllGitHubMetrics(owner, repo),
+          getDependentReposCount(dependencyQueries).catch(() => null),
+        ])
+          .then(([metrics, dependentRepos]) => {
             response.github = {
               stars: metrics.stars,
               forks: metrics.forks,
@@ -68,6 +79,7 @@ export async function GET(request: NextRequest) {
               repeatContributorRatio: metrics.repeatContributorRatio,
               openIssues: metrics.openIssues,
               watchers: metrics.watchers,
+              dependentRepos,
             };
           })
           .catch((error) => {
