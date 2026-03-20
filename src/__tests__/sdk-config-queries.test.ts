@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { SDK_CONFIG } from '../lib/sdk-config';
 
 /**
- * GitHub Search API uses `-qualifier:value` for negation (e.g. `-repo:owner/repo`).
- * Using `NOT qualifier:value` is invalid and silently returns wrong results.
- * These tests guard against that mistake being re-introduced.
+ * Dependency search queries must be scoped to package-dependency declaration
+ * files (requirements.txt, pyproject.toml) so that documentation, markdown
+ * notes, and unrelated source files do not inflate the dependent-repos count.
+ *
+ * GitHub Search API uses `-qualifier:value` for negation (e.g. `-org:OpenHands`).
+ * Using `NOT qualifier:value` is invalid — qualifiers require the dash prefix.
  */
 describe('SDK_CONFIG.dependencySearches', () => {
   it('contains at least one query', () => {
@@ -14,35 +17,43 @@ describe('SDK_CONFIG.dependencySearches', () => {
   it.each(SDK_CONFIG.dependencySearches)(
     'query "%s" does not use NOT as a qualifier negation operator',
     (query) => {
-      // Match "NOT <qualifier>:<value>" patterns — these are invalid GitHub search syntax.
-      // Qualifier negation must use the "-qualifier:value" form.
-      const invalidNot = /\bNOT\s+\w+:/;
-      expect(invalidNot.test(query)).toBe(false);
+      // "NOT qualifier:value" is invalid GitHub search syntax for qualifier negation.
+      // The correct form is "-qualifier:value".
+      expect(query).not.toMatch(/\bNOT\s+\w+:/);
     }
   );
 
-  it('excludes the OpenHands org from the first query', () => {
-    expect(SDK_CONFIG.dependencySearches[0]).toContain('-org:OpenHands');
-  });
-
-  it('excludes the SDK repo from the second query using correct -repo: syntax', () => {
-    const secondQuery = SDK_CONFIG.dependencySearches[1];
-    expect(secondQuery).toContain('-repo:OpenHands/software-agent-sdk');
-    // Must NOT use the invalid "NOT repo:" form
-    expect(secondQuery).not.toMatch(/\bNOT\s+repo:/);
-  });
-
-  it('excludes the OpenHands-CLI repo from the second query using correct -repo: syntax', () => {
-    const secondQuery = SDK_CONFIG.dependencySearches[1];
-    expect(secondQuery).toContain('-repo:OpenHands/OpenHands-CLI');
-    expect(secondQuery).not.toMatch(/\bNOT\s+repo:/);
-  });
-
-  it('all queries use -qualifier: syntax for every exclusion', () => {
-    for (const query of SDK_CONFIG.dependencySearches) {
-      // Every negation should use the dash prefix form, not the NOT keyword form
-      const notQualifierCount = (query.match(/\bNOT\s+\w+:/g) ?? []).length;
-      expect(notQualifierCount).toBe(0);
+  it.each(SDK_CONFIG.dependencySearches)(
+    'query "%s" is scoped to a dependency declaration filename',
+    (query) => {
+      // Every query must target a package-dependency file so we only count
+      // repos that actually declare the SDK as a dependency.
+      const scopedToDependencyFile = query.includes('filename:requirements.txt')
+        || query.includes('filename:pyproject.toml')
+        || query.includes('filename:setup.py')
+        || query.includes('filename:setup.cfg');
+      expect(scopedToDependencyFile).toBe(true);
     }
+  );
+
+  it.each(SDK_CONFIG.dependencySearches)(
+    'query "%s" excludes the OpenHands org to avoid self-referential noise',
+    (query) => {
+      expect(query).toContain('-org:OpenHands');
+    }
+  );
+
+  it('searches for the PyPI distribution name "openhands-sdk" in requirements.txt', () => {
+    const hasRequirementsTxt = SDK_CONFIG.dependencySearches.some(
+      q => q.includes('"openhands-sdk"') && q.includes('filename:requirements.txt')
+    );
+    expect(hasRequirementsTxt).toBe(true);
+  });
+
+  it('searches for "openhands-sdk" in pyproject.toml', () => {
+    const hasPyproject = SDK_CONFIG.dependencySearches.some(
+      q => q.includes('"openhands-sdk"') && q.includes('filename:pyproject.toml')
+    );
+    expect(hasPyproject).toBe(true);
   });
 });
